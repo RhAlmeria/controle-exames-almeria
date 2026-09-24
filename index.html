@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Controle de Exames Ocupacionais · Grupo Almeria</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩺</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --page:#EDF1F0; --surface:#FFFFFF; --surface-2:#F6F8F7; --ink:#1B2A2F; --muted:#5B6A6F; --line:#D5DEDC;
+  --brand:#0F6E6A; --brand-soft:#DCEFEC;
+  --late:#B3261E; --late-soft:#FBE4E1; --soon:#9A5B00; --soon-soft:#FCEFD6; --next:#476A8A; --next-soft:#E3ECF5;
+  --ok:#2E7D4F; --ok-soft:#DFF1E5; --off:#6B5B95; --off-soft:#ECE7F6;
+  --radius-lg:14px; --radius:8px;
+  --font:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --page:#0F1719; --surface:#172225; --surface-2:#1D2A2E; --ink:#E4ECEA; --muted:#98A8AC; --line:#2C3B3F;
+  --brand:#4FB8B1; --brand-soft:#173936;
+  --late:#F08A80; --late-soft:#3B1E1C; --soon:#E7B45A; --soon-soft:#3A2C13; --next:#8DB3D6; --next-soft:#1C2B3A;
+  --ok:#7CCB98; --ok-soft:#183324; --off:#B7A6E0; --off-soft:#2A2440;}}
+:root[data-theme="dark"]{
+  --page:#0F1719; --surface:#172225; --surface-2:#1D2A2E; --ink:#E4ECEA; --muted:#98A8AC; --line:#2C3B3F;
+  --brand:#4FB8B1; --brand-soft:#173936;
+  --late:#F08A80; --late-soft:#3B1E1C; --soon:#E7B45A; --soon-soft:#3A2C13; --next:#8DB3D6; --next-soft:#1C2B3A;
+  --ok:#7CCB98; --ok-soft:#183324; --off:#B7A6E0; --off-soft:#2A2440;}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--page);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.5;font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.wrap{max-width:1320px;margin:0 auto;padding:24px 20px 60px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:20px}
+header.top h1{font-size:28px;line-height:1.15;margin:0;font-weight:800;letter-spacing:-.01em}
+header.top p{margin:4px 0 0;color:var(--muted);max-width:70ch}
+.today{font-size:14px;color:var(--muted);text-align:right}
+.today b{display:block;color:var(--ink);font-size:18px}
+.layout{display:grid;grid-template-columns:290px 1fr;gap:20px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:1fr}}
+nav.rail{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:8px;position:sticky;top:calc(12px + env(safe-area-inset-top,0px))}
+@media (max-width:900px){nav.rail{position:static;display:flex;overflow-x:auto;gap:6px}}
+.co{display:block;width:100%;text-align:left;background:none;border:0;border-radius:var(--radius);padding:10px 12px;cursor:pointer;min-width:220px}
+.co:hover{background:var(--surface-2)}
+.co[aria-current="true"]{background:var(--brand-soft)}
+.co .n{font-weight:700;font-size:14px;display:flex;justify-content:space-between;gap:8px}
+.co .c{font-size:12px;color:var(--muted)}
+.gr{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.gr1{color:var(--ok)}.gr2{color:var(--next)}.gr3{color:var(--soon)}.gr4{color:var(--late)}
+.co .flags{display:flex;gap:6px;margin-top:4px;font-size:12px}
+.dot{display:inline-flex;align-items:center;gap:4px}
+.dot::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.t-late{color:var(--late)}.t-soon{color:var(--soon)}
+main{min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px 20px;margin-bottom:16px}
+.cohead{display:grid;grid-template-columns:1fr auto;gap:16px}
+@media (max-width:640px){.cohead{grid-template-columns:1fr}}
+.cohead h2{margin:0;font-size:20px;line-height:1.25}
+.cohead .sub{color:var(--muted);font-size:13px;margin-top:2px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px 20px;margin-top:14px}
+.fact .k{font-size:12px;color:var(--muted)}
+.fact .v{font-weight:600}
+.fact select{border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:2px 6px}
+.bignum{display:flex;gap:10px;flex-wrap:wrap;align-content:start}
+.tile{border-radius:10px;padding:10px 14px;min-width:108px;border:0;cursor:pointer;text-align:left}
+.tile b{display:block;font-size:26px;line-height:1.1;font-weight:800}
+.tile span{font-size:12px}
+.tile[aria-pressed="true"]{outline:2px solid currentColor;outline-offset:1px}
+.tile.late{background:var(--late-soft);color:var(--late)}
+.tile.soon{background:var(--soon-soft);color:var(--soon)}
+.tile.next{background:var(--next-soft);color:var(--next)}
+.tile.ok{background:var(--ok-soft);color:var(--ok)}
+.tile.off{background:var(--off-soft);color:var(--off)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 14px}
+.tab{background:none;border:0;border-bottom:3px solid transparent;padding:8px 12px;font-weight:600;color:var(--muted);cursor:pointer}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--brand)}
+.filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;align-items:center}
+.filters input,.filters select{border:1px solid var(--line);background:var(--surface);border-radius:var(--radius);padding:7px 10px;min-width:0}
+.filters input{flex:1 1 220px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:12px;font-weight:600;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr.row{cursor:pointer}
+tr.row:hover td{background:var(--surface-2)}
+.name{font-weight:600}
+.small{font-size:12px;color:var(--muted)}
+.pill{display:inline-block;font-size:12px;font-weight:700;border-radius:99px;padding:2px 9px;white-space:nowrap}
+.p-late{background:var(--late-soft);color:var(--late)}.p-soon{background:var(--soon-soft);color:var(--soon)}
+.p-next{background:var(--next-soft);color:var(--next)}.p-ok{background:var(--ok-soft);color:var(--ok)}.p-off{background:var(--off-soft);color:var(--off)}
+.p-brand{background:var(--brand-soft);color:var(--brand)}
+/* cycle bar: the signature — where each person sits in their exam cycle */
+.cyc{position:relative;width:132px;height:10px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden}
+.cyc i{position:absolute;inset:0 auto 0 0;border-radius:99px}
+.cyc.late i{background:var(--late)}.cyc.soon i{background:var(--soon)}.cyc.next i{background:var(--next)}.cyc.ok i{background:var(--ok)}.cyc.off i{background:var(--off)}
+.presumed{font-style:italic}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);max-width:90ch}
+.note b{color:var(--ink)}
+dialog{border:0;border-radius:var(--radius-lg);padding:0;width:min(560px,94vw);background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(10,20,22,.45)}
+.dlg{padding:20px 22px}
+.dlg h3{margin:0 0 2px;font-size:19px}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:4px 12px;font-size:14px;margin:12px 0}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.hist{list-style:none;padding:0;margin:8px 0 14px;border-left:2px solid var(--line)}
+.hist li{padding:4px 0 4px 12px;position:relative;font-size:14px}
+.hist li::before{content:"";position:absolute;left:-6px;top:11px;width:10px;height:10px;border-radius:50%;background:var(--brand)}
+fieldset{border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin:12px 0}
+legend{font-weight:700;font-size:14px;padding:0 4px}
+.frow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.frow>*{flex:1 1 140px}
+.frow input,.frow select,.frow textarea{border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:7px 9px;width:100%}
+.btn{border:0;border-radius:var(--radius);padding:8px 14px;font-weight:700;cursor:pointer;background:var(--brand);color:#fff}
+.btn.ghost{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+.btn.warn{background:var(--late)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.banner{background:var(--soon-soft);color:var(--soon);border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:14px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--page);padding:10px 16px;border-radius:99px;font-weight:600;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+.topbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.who{font-size:13px;color:var(--muted);text-align:right}
+.who b{color:var(--ink)}
+.login{max-width:400px;margin:10vh auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:28px}
+.login h1{font-size:24px;margin:0 0 4px}
+.login p{color:var(--muted);margin:0 0 18px;font-size:14px}
+.login label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
+.login input{width:100%;border:1px solid var(--line);background:var(--surface-2);border-radius:var(--radius);padding:10px}
+.login .btn{width:100%;margin-top:16px;padding:11px}
+.err{color:var(--late);font-size:14px;min-height:1.5em;margin-top:8px}
+.frow label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+.drop{border:2px dashed var(--line);border-radius:var(--radius);padding:14px;text-align:center;font-size:14px;color:var(--muted);cursor:pointer}
+.drop.has{border-color:var(--brand);color:var(--brand);font-weight:600}
+.results{max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:6px;margin-top:6px}
+.results button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:8px 10px;cursor:pointer}
+.results button:hover,.results button[aria-selected="true"]{background:var(--brand-soft)}
+.chip{display:inline-flex;gap:6px;align-items:center;font-size:13px;background:var(--brand-soft);color:var(--brand);border-radius:99px;padding:3px 10px;font-weight:600}
+a.att{color:var(--brand);font-weight:600;font-size:13px}
+.busy{opacity:.6;pointer-events:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.seg button{border:0;background:var(--surface);padding:7px 12px;cursor:pointer;font-weight:600;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--brand-soft);color:var(--brand)}
+</style>
+</head>
+<body>
+<section id="loginView" hidden>
+  <form class="login" id="loginForm">
+    <h1>Controle de exames</h1>
+    <p>Grupo Almeria · RH/DP. Entre com seu e-mail e senha.</p>
+    <label for="lemail">E-mail</label><input id="lemail" type="email" autocomplete="username" required>
+    <label for="lsenha">Senha</label><input id="lsenha" type="password" autocomplete="current-password" required>
+    <button class="btn" id="lbtn" type="submit">Entrar</button>
+    <div class="err" id="lerr" role="alert"></div>
+  </form>
+</section>
+<div id="appView" hidden>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Controle de exames ocupacionais</h1>
+      <p>Empregados CLT por CNPJ de registro, grau de risco da NR-4 e prazos do PCMSO pela NR-7. Posição em <b id="today"></b> · <span id="stamp"></span></p>
+    </div>
+    <div>
+      <div class="topbar">
+        <button class="btn" data-act="exportar">Baixar PDF / Excel</button>
+        <button class="btn ghost rh-only" data-act="desligar">Inserir desligado</button>
+        <button class="btn ghost rh-only" data-act="admissao">Incluir admissão</button>
+        <button class="btn ghost" data-act="recarregar" title="Buscar dados atualizados">Atualizar</button>
+      </div>
+      <div class="topbar" style="margin-top:8px"><div class="who" id="who"></div>
+        <button class="btn ghost" data-act="senha" style="padding:4px 10px;font-size:13px">Trocar senha</button>
+        <button class="btn ghost" data-act="sair" style="padding:4px 10px;font-size:13px">Sair</button></div>
+    </div>
+  </header>
+  <div class="layout">
+    <nav class="rail" id="rail" aria-label="Empresas"></nav>
+    <main id="main"></main>
+  </div>
+</div>
+</div>
+<dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(() => {
+const API_URL = "https://script.google.com/macros/s/AKfycbz388QKe4EbiWn4nyk0fzqSl-9KIx1sgjPY25C_Vam-a2cXRAKv95kUbj0anuvIlEs4Yg/exec";
+const TODAY = (() => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); })();
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const P = iso => { if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return null; const [y,m,d] = iso.slice(0,10).split("-").map(Number); return new Date(Date.UTC(y,m-1,d)); };
+const ISO = d => d.toISOString().slice(0,10);
+const BR = d => { if (!d) return "—"; const x = typeof d === "string" ? P(d) : d; return x ? x.toLocaleDateString("pt-BR",{timeZone:"UTC"}) : "—"; };
+const addMonths = (d,n) => { const r = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth()+n, 1)); const last = new Date(Date.UTC(r.getUTCFullYear(), r.getUTCMonth()+1, 0)).getUTCDate(); r.setUTCDate(Math.min(d.getUTCDate(), last)); return r; };
+const addDays = (d,n) => new Date(d.getTime() + n*864e5);
+const diffDays = (a,b) => Math.round((a-b)/864e5);
+const dig = s => String(s||"").replace(/\D/g,"");
+
+const CYCLE_TYPES = ["Admissional","Periódico","Retorno ao trabalho","Mudança de riscos ocupacionais"];
+const EXAM_TYPES = [...CYCLE_TYPES, "Demissional"];
+const STATUS = {
+  late:{label:"Vencidos", cor:[179,38,30]}, soon:{label:"Vencem em até 30 dias", cor:[154,91,0]},
+  next:{label:"Vencem em 31 a 60 dias", cor:[71,106,138]}, ok:{label:"Em dia", cor:[46,125,79]}, off:{label:"Afastados / licença", cor:[107,91,149]}
+};
+const ORDER = ["late","soon","next","ok","off"];
+
+const S = { token:null, user:null, empresas:{}, colabs:[], exames:[], sel:"todas", tab:"ativos", unidade:"", status:"pend", q:"", demPend:true };
+const isRH = () => S.user && S.user.perfil === "RH";
+
+/* ---------------- API ---------------- */
+async function api(action, payload = {}){
+  const r = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action, token:S.token, ...payload }) });
+  const j = await r.json();
+  if (!j.ok && j.erro === "sessao"){ sair(); throw new Error(j.msg); }
+  if (!j.ok) throw new Error(j.msg || "Erro no servidor");
+  return j;
+}
+async function carregar(){
+  const j = await api("dados");
+  S.user = j.user;
+  S.empresas = {}; j.empresas.forEach(e => { e.grauRisco = +e.grauRisco; e.periodicidadeMeses = +e.periodicidadeMeses || 12; e.ordem = +e.ordem || 99; S.empresas[String(e.id)] = e; });
+  const byC = {}; j.exames.forEach(e => (byC[e.colaboradorId] ||= []).push(e));
+  S.exames = j.exames;
+  S.colabs = j.colaboradores.map(c => ({ ...c, situacao: c.situacao || "ativo", exames: byC[c.id] || [] }));
+  $("#stamp").textContent = "Atualizado " + j.geradoEm.split(" ")[1];
+  render();
+}
+
+/* ---------------- regras ---------------- */
+const empOf = c => S.empresas[dig(c.cnpj)] || null;
+const months = c => (empOf(c) || {}).periodicidadeMeses || 12;
+const grOf = c => (empOf(c) || {}).grauRisco || null;
+const cnpjKey = c => dig(c.cnpj);
+function lastCycle(c){
+  const ex = c.exames.filter(e => CYCLE_TYPES.includes(e.tipo) && P(e.data)).sort((a,b)=>a.data<b.data?1:-1);
+  if (ex.length) return { ...ex[0], presumido:false };
+  return c.admissao ? { tipo:"Admissional", data:c.admissao, presumido:true } : null;
+}
+function classify(c){
+  const last = lastCycle(c), m = months(c);
+  if (!last) return { key:"late", label:"Sem data", last, due:null, frac:1 };
+  const lastD = P(last.data), due = addMonths(lastD, m), days = diffDays(due, TODAY);
+  const frac = Math.max(0, Math.min(1, diffDays(TODAY,lastD) / Math.max(1,diffDays(due,lastD))));
+  if (c.status && c.status !== "ATIVO") return { key:"off", label: c.status === "AFASTADO" ? "Afastado" : "Licença", last, due, days, frac };
+  if (days < 0) return { key:"late", label:`Vencido há ${-days} d`, last, due, days, frac };
+  if (days <= 30) return { key:"soon", label:`Vence em ${days} d`, last, due, days, frac };
+  if (days <= 60) return { key:"next", label:`Vence em ${days} d`, last, due, days, frac };
+  return { key:"ok", label:"Em dia", last, due, days, frac };
+}
+function demissional(c){
+  const gr = grOf(c) || 3, limite = gr <= 2 ? 135 : 90, fim = P(c.dataDesligamento);
+  const feito = c.exames.find(e => e.tipo === "Demissional");
+  const last = c.exames.filter(e => e.tipo !== "Demissional" && P(e.data)).sort((a,b)=>a.data<b.data?1:-1)[0]
+    || (c.admissao ? { tipo:"Admissional", data:c.admissao, presumido:true } : null);
+  if (feito) return { key:"ok", pend:false, label:`Demissional feito em ${BR(feito.data)}`, limite, last, feito };
+  if (!fim) return { key:"late", pend:true, label:"Sem data de desligamento", limite, last };
+  const prazo = addDays(fim, 10);
+  const idade = last ? diffDays(fim, P(last.data)) : null;
+  if (last && idade < limite && !last.presumido) return { key:"ok", pend:false, label:`Dispensado: último ASO há ${idade} d`, limite, last, idade };
+  if (last && idade < limite) return { key:"soon", pend:true, label:`Talvez dispensado (${idade} d) · confirmar ASO`, limite, last, idade, prazo };
+  const d = diffDays(prazo, TODAY);
+  return { key: d < 0 ? "late" : "soon", pend:true, label:`Fazer até ${BR(prazo)}${d<0?" · prazo passou":""}`, limite, last, idade, prazo };
+}
+const ativos = () => S.colabs.filter(c => c.situacao !== "desligado");
+const deslig = () => S.colabs.filter(c => c.situacao === "desligado");
+const inSel = c => S.sel === "todas" || cnpjKey(c) === S.sel;
+const matchStatus = (k, f) => !f || (f === "pend" ? (k === "late" || k === "soon") : k === f);
+const apelido = c => (empOf(c) || {}).apelido || c.cnpj || "Sem CNPJ";
+
+/* ---------------- render ---------------- */
+function renderRail(){
+  const list = Object.values(S.empresas).sort((a,b)=>a.ordem-b.ordem);
+  const item = (key,title,sub,gr) => {
+    const cs = ativos().filter(c => key==="todas" || cnpjKey(c)===key).map(classify);
+    const late = cs.filter(x=>x.key==="late").length, soon = cs.filter(x=>x.key==="soon").length;
+    return `<button class="co" data-co="${key}" aria-current="${S.sel===key}">
+      <div class="n"><span>${esc(title)}</span>${gr?`<span class="gr gr${gr}">GR ${gr}</span>`:""}</div>
+      <div class="c">${esc(sub)} · ${cs.length} ativos</div>
+      <div class="flags">${late?`<span class="dot t-late">${late} vencidos</span>`:""}${soon?`<span class="dot t-soon">${soon} em 30 d</span>`:""}</div></button>`;
+  };
+  $("#rail").innerHTML = item("todas","Grupo inteiro","Todos os CNPJs",null) + list.map(e => item(String(e.id), e.apelido, e.cnpj, e.grauRisco)).join("");
+}
+function tiles(base){
+  const n = k => base.filter(x=>x.cls.key===k).length;
+  const t = (k,lab) => `<button class="tile ${k}" data-st="${k}" aria-pressed="${S.status===k}"><b>${n(k)}</b><span>${lab}</span></button>`;
+  return t("late","vencidos") + t("soon","vencem em 30 dias") + t("next","em 31 a 60 dias") + t("ok","em dia") + t("off","afastados / licença");
+}
+function renderMain(){
+  const emp = S.sel === "todas" ? null : S.empresas[S.sel];
+  const base = ativos().filter(inSel).map(c => ({ c, cls: classify(c) }));
+  const dl = deslig().filter(inSel).map(c => ({ c, d: demissional(c) }));
+  const unidades = [...new Set(base.map(x=>x.c.unidade).filter(Boolean))].sort();
+  const dis = isRH() ? "" : "disabled";
+  let head;
+  if (emp){
+    head = `<div class="card"><div class="cohead"><div>
+      <h2>${esc(emp.razaoSocial)}</h2><div class="sub">${esc(emp.cnpj)} · ${esc(emp.tipo)} · ${esc(emp.fantasia)}</div>
+      <div class="facts">
+        <div class="fact"><div class="k">CNAE principal</div><div class="v">${esc(emp.cnae)}</div><div class="small">${esc(emp.cnaeDescricao)}</div></div>
+        <div class="fact"><div class="k">Grau de risco (NR-4)</div><div class="v"><span class="gr gr${emp.grauRisco}">GR ${emp.grauRisco}</span></div></div>
+        <div class="fact"><div class="k">Periódico a cada</div><div class="v"><select id="perSel" ${dis} aria-label="Periodicidade">${[6,12,24].map(m=>`<option value="${m}" ${emp.periodicidadeMeses===m?"selected":""}>${m} meses</option>`).join("")}</select></div></div>
+        <div class="fact"><div class="k">Dispensa do demissional</div><div class="v">ASO com menos de ${emp.grauRisco<=2?135:90} dias</div></div>
+        <div class="fact"><div class="k">Endereço</div><div class="small">${esc(emp.endereco)}</div></div>
+      </div></div><div class="bignum">${tiles(base)}</div></div></div>`;
+  } else {
+    head = `<div class="card"><div class="cohead"><div>
+      <h2>Grupo Almeria · todos os CNPJs</h2><div class="sub">${base.length} empregados CLT ativos em ${Object.keys(S.empresas).length} CNPJs</div>
+      <p class="note">O vencimento conta do último exame do ciclo (admissional, periódico, retorno ou mudança de risco). Sem ASO lançado, vale a admissão como admissional <span class="presumed">presumido</span>. Lançou o periódico com o anexo, a pessoa sai das pendências.</p>
+      </div><div class="bignum">${tiles(base)}</div></div></div>`;
+  }
+  const demPend = dl.filter(x=>x.d.pend).length;
+  const tabs = `<div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="ativos" aria-selected="${S.tab==="ativos"}">Periódico (${base.length})</button>
+    <button class="tab" role="tab" data-tab="deslig" aria-selected="${S.tab==="deslig"}">Demissional (${demPend} pendentes)</button>
+    <button class="tab" role="tab" data-tab="regras" aria-selected="${S.tab==="regras"}">Regras NR-4 / NR-7</button></div>`;
+  let body = "";
+  if (S.tab === "ativos"){
+    const q = S.q.trim().toUpperCase();
+    const rows = base.filter(x => (!S.unidade || x.c.unidade===S.unidade) && matchStatus(x.cls.key, S.status)
+      && (!q || x.c.nome.toUpperCase().includes(q) || (x.c.cpf||"").includes(q) || (x.c.cargo||"").toUpperCase().includes(q)))
+      .sort((a,b)=> ORDER.indexOf(a.cls.key)-ORDER.indexOf(b.cls.key) || ((a.cls.due||0)-(b.cls.due||0)) || a.c.nome.localeCompare(b.c.nome));
+    body = `<div class="filters">
+      <div class="seg" role="group" aria-label="Mostrar"><button data-st="pend" aria-pressed="${S.status==="pend"}">Pendências</button><button data-st="" aria-pressed="${S.status===""}">Todos</button></div>
+      <input id="q" type="search" placeholder="Buscar nome, CPF ou cargo" value="${esc(S.q)}" aria-label="Buscar">
+      <select id="un" aria-label="Unidade operacional"><option value="">Todas as unidades</option>${unidades.map(u=>`<option ${u===S.unidade?"selected":""}>${esc(u)}</option>`).join("")}</select>
+      ${S.status && S.status!=="pend" ? `<span class="chip">${esc(STATUS[S.status].label)}</span>`:""}
+      <span class="small">${rows.length} pessoas</span></div>
+      <div class="scroll"><table><thead><tr><th>Empregado</th><th>Unidade · cargo</th>${emp?"":"<th>CNPJ</th>"}<th>Admissão</th><th>Último exame</th><th>Próximo periódico</th><th>Ciclo</th><th>Situação</th></tr></thead><tbody>
+      ${rows.map(({c,cls}) => `<tr class="row" data-id="${esc(c.id)}" tabindex="0">
+        <td><div class="name">${esc(c.nome)}</div><div class="small">${esc(c.cpf||"CPF não informado")}</div></td>
+        <td>${esc(c.unidade)}<div class="small">${esc(c.cargo)}</div></td>${emp?"":`<td class="small">${esc(apelido(c))}</td>`}
+        <td>${BR(c.admissao)}</td>
+        <td>${cls.last?`${BR(cls.last.data)}<div class="small ${cls.last.presumido?"presumed":""}">${esc(cls.last.tipo)}${cls.last.presumido?" presumido":""}${cls.last.anexoUrl?` · <a class="att" href="${esc(cls.last.anexoUrl)}" target="_blank" rel="noopener">ASO</a>`:""}</div>`:"—"}</td>
+        <td>${BR(cls.due)}</td>
+        <td><div class="cyc ${cls.key}" title="${Math.round(cls.frac*100)}% do ciclo"><i style="width:${Math.round(cls.frac*100)}%"></i></div></td>
+        <td><span class="pill p-${cls.key}">${esc(cls.label)}</span></td></tr>`).join("") || `<tr><td colspan="8" class="empty">${S.status==="pend"?"Nenhuma pendência de periódico aqui.":"Ninguém com esse filtro."}</td></tr>`}
+      </tbody></table></div>`;
+  } else if (S.tab === "deslig"){
+    const rows = dl.filter(x => !S.demPend || x.d.pend).sort((a,b)=>(b.c.dataDesligamento||"").localeCompare(a.c.dataDesligamento||""));
+    body = `<div class="filters">
+      <div class="seg" role="group" aria-label="Mostrar"><button data-dem="1" aria-pressed="${S.demPend}">Pendentes</button><button data-dem="0" aria-pressed="${!S.demPend}">Todos os desligados</button></div>
+      ${isRH()?`<button class="btn" data-act="desligar">Inserir desligado</button>`:""}
+      <span class="small">Demissional em até 10 dias do término. Dispensado se o último ASO tiver menos de 135 dias (GR 1 e 2) ou 90 dias (GR 3 e 4).</span></div>
+      <div class="scroll"><table><thead><tr><th>Empregado</th><th>CNPJ</th><th>Desligamento</th><th>Último ASO</th><th>Demissional</th></tr></thead><tbody>
+      ${rows.map(({c,d}) => `<tr class="row" data-id="${esc(c.id)}" tabindex="0">
+        <td><div class="name">${esc(c.nome)}</div><div class="small">${esc(c.unidade)} · ${esc(c.cargo)}</div></td>
+        <td class="small">${esc(apelido(c))} · GR ${grOf(c)??"?"}</td>
+        <td>${BR(c.dataDesligamento)}<div class="small">${esc(c.motivoDesligamento||"")}</div></td>
+        <td>${d.last?`${BR(d.last.data)}<div class="small ${d.last.presumido?"presumed":""}">${esc(d.last.tipo)}${d.last.presumido?" presumido":""}</div>`:"—"}</td>
+        <td><span class="pill p-${d.key}">${esc(d.label)}</span>${d.feito&&d.feito.anexoUrl?` <a class="att" href="${esc(d.feito.anexoUrl)}" target="_blank" rel="noopener">ASO</a>`:""}</td></tr>`).join("")
+        || `<tr><td colspan="5" class="empty">${S.demPend?"Nenhum demissional pendente.":"Nenhum desligamento registrado."}${isRH()?" Use “Inserir desligado” para lançar um.":""}</td></tr>`}
+      </tbody></table></div>`;
+  } else {
+    body = `<div class="note" style="max-width:80ch">
+      <p><b>Grau de risco (NR-4, Anexo I).</b> Pelo CNAE principal de cada CNPJ: 56.11-2 Restaurantes → GR 2; 56.20-1 Bufê → GR 3; 64.63-8 Sociedades de participação → GR 1.</p>
+      <p><b>Periódico (NR-7, 7.5.8).</b> Anual para expostos a riscos do PGR e portadores de doença crônica; a cada dois anos para os demais, salvo intervalo menor definido pelo médico do PCMSO. Padrão aqui: 12 meses, ajustável por CNPJ.</p>
+      <p><b>Retorno ao trabalho (7.5.9).</b> No primeiro dia de volta após afastamento de 30 dias ou mais por doença ou acidente.</p>
+      <p><b>Mudança de riscos (7.5.10).</b> Antes de mudar de função, setor ou atividade com risco diferente.</p>
+      <p><b>Demissional (7.5.11 e 7.5.12).</b> Em até 10 dias do término do contrato. Dispensado se o último exame ocupacional tiver menos de 135 dias (GR 1 e 2) ou 90 dias (GR 3 e 4).</p>
+      <p><b>Quem entra.</b> CLT ativos, afastados ou em licença. PJ e sócios ficam de fora.</p></div>`;
+  }
+  $("#main").innerHTML = head + `<div class="card">${tabs}${body}</div>`;
+}
+function render(){ renderRail(); renderMain(); }
+
+/* ---------------- modais ---------------- */
+const dlg = $("#dlg");
+function modal(html){ $("#dlgBody").innerHTML = html; dlg.showModal(); const x = $("#dlgClose"); if (x) x.onclick = () => dlg.close(); }
+let tt; function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove("show"),2800); }
+function fileB64(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]); r.onerror=()=>rej(new Error("Não consegui ler o arquivo")); r.readAsDataURL(f); }); }
+async function run(btn, fn, okMsg){
+  btn.disabled = true; const t = btn.textContent; btn.textContent = "Salvando…";
+  try { await fn(); toast(okMsg); dlg.close(); await carregar(); }
+  catch(e){ toast(e.message); btn.disabled = false; btn.textContent = t; }
+}
+function examForm(c, tipoPadrao){
+  return `<fieldset><legend>Registrar exame</legend>
+    <div class="frow"><div><label for="exTipo">Tipo</label><select id="exTipo">${EXAM_TYPES.map(t=>`<option ${t===tipoPadrao?"selected":""}>${t}</option>`).join("")}</select></div>
+    <div><label for="exData">Data do ASO</label><input id="exData" type="date" value="${ISO(TODAY)}" max="${ISO(addDays(TODAY,1))}"></div></div>
+    <div class="frow"><div><label for="exObs">Observação</label><input id="exObs" placeholder="Clínica, apto/inapto, pendências"></div></div>
+    <label class="drop" id="drop" for="exFile">Anexar o ASO (opcional · PDF ou foto, até 15 MB)</label>
+    <input id="exFile" type="file" accept="application/pdf,image/*" hidden>
+    <div class="actions" style="margin-top:10px"><button class="btn" id="exSave">Marcar como feito</button></div></fieldset>`;
+}
+function bindExam(c){
+  const f = $("#exFile"), drop = $("#drop");
+  f.onchange = () => { const x = f.files[0]; drop.textContent = x ? "📎 " + x.name : "Anexar o ASO (opcional)"; drop.classList.toggle("has", !!x); };
+  $("#exSave").onclick = e => {
+    const x = f.files[0], data = $("#exData").value;
+    if (!data) return toast("Informe a data do exame");
+    if (x && x.size > 15*1024*1024) return toast("Arquivo acima de 15 MB");
+    run(e.target, async () => api("addExame", { colaboradorId:c.id, tipo:$("#exTipo").value, data, obs:$("#exObs").value.trim(),
+      arquivo: x ? { nome:x.name, tipo:x.type || "application/pdf", base64: await fileB64(x) } : null }), x ? "Exame salvo com o anexo" : "Exame marcado como feito");
+  };
+}
+function openFicha(id){
+  const c = S.colabs.find(x=>x.id===id); if (!c) return;
+  const cls = classify(c), des = c.situacao === "desligado", dem = des ? demissional(c) : null;
+  const hist = [...c.exames].sort((a,b)=>a.data<b.data?1:-1);
+  modal(`<h3>${esc(c.nome)}</h3><div class="small">${esc(c.cargo)} · ${esc(c.unidade)} · ${esc(apelido(c))}</div>
+    <dl class="kv">
+      <dt>CPF</dt><dd>${esc(c.cpf||"não informado")}${c.cpfAlerta?` <span class="pill p-soon">${esc(c.cpfAlerta)}</span>`:""}</dd>
+      <dt>CNPJ de registro</dt><dd>${esc(c.cnpj)}</dd>
+      <dt>Grau de risco</dt><dd>GR ${grOf(c)??"?"} · periódico a cada ${months(c)} meses</dd>
+      <dt>Admissão</dt><dd>${BR(c.admissao)}</dd>
+      <dt>Status</dt><dd>${esc(c.status||"ATIVO")}${des?` · desligado em ${BR(c.dataDesligamento)}`:""}</dd>
+      ${des?`<dt>Demissional</dt><dd><span class="pill p-${dem.key}">${esc(dem.label)}</span></dd>`:`<dt>Próximo periódico</dt><dd>${BR(cls.due)} <span class="pill p-${cls.key}">${esc(cls.label)}</span></dd>`}
+    </dl>
+    <b>Exames lançados</b>
+    <ul class="hist">${hist.map(e=>`<li>${BR(e.data)} · ${esc(e.tipo)}${e.anexoUrl?` · <a class="att" href="${esc(e.anexoUrl)}" target="_blank" rel="noopener">abrir ASO</a>`:""}${e.obs?` <span class="small">· ${esc(e.obs)}</span>`:""}${isRH()?` <button class="btn ghost" style="padding:1px 8px;font-size:12px" data-rm="${esc(e.id)}">remover</button>`:""}</li>`).join("") || `<li class="small">Nenhum ASO lançado. Admissional presumido em ${BR(c.admissao)}.</li>`}</ul>
+    ${isRH() ? examForm(c, des ? "Demissional" : "Periódico") : ""}
+    ${isRH() && !des ? `<fieldset><legend>Desligamento</legend><div class="frow"><div><label for="dsData">Data do término</label><input id="dsData" type="date" value="${ISO(TODAY)}"></div><div><label for="dsMot">Motivo</label><input id="dsMot" placeholder="Pedido de demissão, sem justa causa…"></div></div>
+      <div class="actions"><button class="btn warn" id="dsSave">Mover para desligados</button></div></fieldset>` : ""}
+    ${isRH() && des ? `<div class="actions" style="margin:10px 0"><button class="btn ghost" id="dsUndo">Desfazer desligamento</button></div>` : ""}
+    <div class="actions"><button class="btn ghost" id="dlgClose">Fechar</button></div>`);
+  if (!isRH()) return;
+  bindExam(c);
+  document.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { if (confirm("Remover este exame do controle? O arquivo continua no Drive.")) run(b, () => api("removerExame",{ exameId:b.dataset.rm }), "Exame removido"); });
+  const ds = $("#dsSave"); if (ds) ds.onclick = e => { const v=$("#dsData").value; if(!v) return toast("Informe a data"); run(e.target, () => api("desligar",{ colaboradorId:c.id, data:v, motivo:$("#dsMot").value.trim() }), "Movido para desligados"); };
+  const du = $("#dsUndo"); if (du) du.onclick = e => run(e.target, () => api("reativar",{ colaboradorId:c.id }), "Voltou para ativos");
+}
+function openDesligar(){
+  let picked = null;
+  modal(`<h3>Inserir desligado</h3><p class="small">Busque o empregado ativo, informe a data do término e, se já tiver, anexe o demissional.</p>
+    <div class="frow"><div><label for="dq">Empregado</label><input id="dq" type="search" placeholder="Nome ou CPF" autocomplete="off"></div></div>
+    <div class="results" id="dres"></div>
+    <div class="frow" style="margin-top:10px"><div><label for="dd">Data do término</label><input id="dd" type="date" value="${ISO(TODAY)}"></div><div><label for="dm">Motivo</label><input id="dm" placeholder="Motivo"></div></div>
+    <div class="actions"><button class="btn ghost" id="dlgClose">Cancelar</button><button class="btn warn" id="dsv" disabled>Mover para desligados</button></div>`);
+  const list = () => {
+    const q = $("#dq").value.trim().toUpperCase();
+    const r = ativos().filter(c => !q || c.nome.includes(q) || dig(c.cpf).includes(dig(q)||"@")).slice(0,40);
+    $("#dres").innerHTML = r.map(c=>`<button data-p="${esc(c.id)}" aria-selected="${picked===c.id}"><b>${esc(c.nome)}</b> <span class="small">${esc(c.unidade)} · ${esc(apelido(c))} · adm. ${BR(c.admissao)}</span></button>`).join("") || `<div class="empty">Ninguém encontrado</div>`;
+  };
+  $("#dq").oninput = list; list();
+  $("#dres").onclick = e => { const b = e.target.closest("[data-p]"); if(!b) return; picked = b.dataset.p; $("#dsv").disabled = false; list(); };
+  $("#dsv").onclick = e => { const v=$("#dd").value; if(!picked||!v) return toast("Escolha o empregado e a data");
+    const id = picked; run(e.target, () => api("desligar",{ colaboradorId:id, data:v, motivo:$("#dm").value.trim() }), "Desligamento lançado. Abra a ficha para anexar o demissional."); };
+}
+function openAdmissao(){
+  const emps = Object.values(S.empresas).sort((a,b)=>a.ordem-b.ordem);
+  const uns = ["104 SUL","BEIRA LAGO","CASA NORO","CPD","CSC","WINE GARDEN"];
+  modal(`<h3>Incluir admissão</h3>
+    <div class="frow"><div><label for="an">Nome completo</label><input id="an"></div><div><label for="ac">CPF</label><input id="ac" placeholder="000.000.000-00"></div></div>
+    <div class="frow"><div><label for="ae">CNPJ de registro</label><select id="ae">${emps.map(e=>`<option value="${esc(e.cnpj)}">${esc(e.apelido)} · ${esc(e.cnpj)}</option>`).join("")}</select></div>
+    <div><label for="au">Unidade operacional</label><select id="au">${uns.map(u=>`<option>${u}</option>`).join("")}</select></div></div>
+    <div class="frow"><div><label for="ag">Cargo</label><input id="ag"></div><div><label for="aa">Admissão</label><input id="aa" type="date" value="${ISO(TODAY)}"></div></div>
+    <p class="small">Depois de incluir, abra a ficha para anexar o ASO admissional.</p>
+    <div class="actions"><button class="btn ghost" id="dlgClose">Cancelar</button><button class="btn" id="asv">Incluir</button></div>`);
+  $("#asv").onclick = e => { const nome=$("#an").value.trim(); if(!nome) return toast("Informe o nome");
+    run(e.target, () => api("addColaborador",{ colaborador:{ nome, cpf:$("#ac").value.trim(), cnpj:$("#ae").value, unidade:$("#au").value, cargo:$("#ag").value.trim(), admissao:$("#aa").value } }), "Admissão incluída"); };
+}
+function openSenha(){
+  modal(`<h3>Trocar minha senha</h3>
+    <div class="frow"><div><label for="s1">Senha atual</label><input id="s1" type="password" autocomplete="current-password"></div></div>
+    <div class="frow"><div><label for="s2">Nova senha (mínimo 6)</label><input id="s2" type="password" autocomplete="new-password"></div></div>
+    <div class="actions"><button class="btn ghost" id="dlgClose">Cancelar</button><button class="btn" id="ssv">Trocar</button></div>`);
+  $("#ssv").onclick = async e => { e.target.disabled = true; try { await api("trocarSenha",{ senhaAtual:$("#s1").value, novaSenha:$("#s2").value }); toast("Senha trocada"); dlg.close(); } catch(x){ toast(x.message); e.target.disabled=false; } };
+}
+
+/* ---------------- exportação ---------------- */
+function openExport(){
+  const emps = Object.values(S.empresas).sort((a,b)=>a.ordem-b.ordem);
+  const uns = [...new Set(S.colabs.map(c=>c.unidade).filter(Boolean))].sort();
+  modal(`<h3>Baixar relatório</h3><p class="small">Escolha o recorte. O PDF abre com um resumo clicável: clique em “Vencidos” ou numa unidade e ele pula para a lista.</p>
+    <div class="frow"><div><label for="xc">CNPJ</label><select id="xc"><option value="">Todos os CNPJs</option>${emps.map(e=>`<option value="${esc(String(e.id))}" ${S.sel===String(e.id)?"selected":""}>${esc(e.apelido)}</option>`).join("")}</select></div>
+    <div><label for="xu">Unidade operacional</label><select id="xu"><option value="">Todas</option>${uns.map(u=>`<option>${esc(u)}</option>`).join("")}</select></div></div>
+    <div class="frow"><div><label for="xs">Status</label><select id="xs"><option value="">Tudo (todos os status e desligados)</option><option value="pend">Pendências (vencidos + 30 dias)</option>${ORDER.map(k=>`<option value="${k}">${STATUS[k].label}</option>`).join("")}<option value="dem">Demissionais</option></select></div></div>
+    <div class="actions"><button class="btn ghost" id="dlgClose">Cancelar</button><button class="btn" id="xx">Baixar Excel</button><button class="btn" id="xp">Baixar PDF</button></div>`);
+  const get = () => ({ cnpj:$("#xc").value, un:$("#xu").value, st:$("#xs").value });
+  $("#xp").onclick = () => { try { gerarPDF(get()); dlg.close(); } catch(e){ console.error(e); toast("Não consegui gerar o PDF"); } };
+  $("#xx").onclick = () => { try { gerarExcel(get()); dlg.close(); } catch(e){ console.error(e); toast("Não consegui gerar o Excel"); } };
+}
+function recorte(f){
+  const scope = c => (!f.cnpj || cnpjKey(c)===f.cnpj) && (!f.un || c.unidade===f.un);
+  const at = ativos().filter(scope).map(c=>({c,cls:classify(c)}));
+  const dl = deslig().filter(scope).map(c=>({c,d:demissional(c)}));
+  let keys = ORDER.slice(), incDem = true;
+  if (f.st === "pend") { keys = ["late","soon"]; incDem = false; }
+  else if (f.st === "dem") { keys = []; }
+  else if (f.st) { keys = [f.st]; incDem = false; }
+  const titulo = [f.cnpj ? S.empresas[f.cnpj].apelido : "Todos os CNPJs", f.un || "todas as unidades",
+    f.st === "pend" ? "pendências" : f.st === "dem" ? "demissionais" : f.st ? STATUS[f.st].label.toLowerCase() : "todos os status"].join(" · ");
+  return { at, dl, keys, incDem, titulo };
+}
+const sortRows = a => a.sort((x,y)=>((x.cls.due||0)-(y.cls.due||0)) || x.c.nome.localeCompare(y.c.nome));
+const empsOrdered = () => Object.values(S.empresas).sort((a,b)=>a.ordem-b.ordem);
+const fname = (f, ext) => `controle-exames_${f.cnpj ? S.empresas[f.cnpj].apelido.replace(/\W+/g,"-").toLowerCase() : "grupo"}${f.un?"_"+f.un.replace(/\W+/g,"-").toLowerCase():""}${f.st?"_"+f.st:""}_${ISO(TODAY)}.${ext}`;
+
+function gerarPDF(f){
+  const { jsPDF } = window.jspdf;
+  const R = recorte(f);
+  const doc = new jsPDF({ orientation:"landscape", unit:"mm", format:"a4" });
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 12;
+  const ink=[27,42,47], muted=[91,106,111], brand=[15,110,106];
+  const pages = {}; // pages["late"], pages["late|cnpj"], pages["dem"]
+  const feitos = new Set();
+  const voltar = () => { const pg = doc.getNumberOfPages(); if (feitos.has(pg)) return; feitos.add(pg); doc.setFontSize(9); doc.setFont("helvetica","normal"); doc.setTextColor(...brand); doc.textWithLink("‹ Voltar ao resumo", W-M-32, 10, { pageNumber:1 }); };
+  const rodape = () => { const n = doc.getNumberOfPages(); for (let i=1;i<=n;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(...muted); doc.text(`Grupo Almeria · Controle de exames ocupacionais · posição em ${BR(TODAY)} · página ${i} de ${n}`, M, H-6); } };
+
+  // seções (páginas 2+)
+  const head = [["Empregado","CPF","Unidade","Cargo","Admissão","Último exame","Próximo periódico","Situação"]];
+  R.keys.forEach(k => {
+    const all = R.at.filter(x=>x.cls.key===k); if (!all.length) return;
+    doc.addPage(); pages[k] = doc.getNumberOfPages(); voltar();
+    doc.setFillColor(...STATUS[k].cor); doc.rect(M, 14, W-2*M, 11, "F");
+    doc.setTextColor(255); doc.setFontSize(14); doc.setFont("helvetica","bold"); doc.text(`${STATUS[k].label} (${all.length})`, M+4, 21.5);
+    let y = 32;
+    empsOrdered().forEach(e => {
+      const rows = sortRows(all.filter(x=>cnpjKey(x.c)===String(e.id))); if (!rows.length) return;
+      if (y > H-40){ doc.addPage(); voltar(); y = 18; }
+      pages[k+"|"+e.id] = doc.getNumberOfPages();
+      doc.setTextColor(...ink); doc.setFontSize(11); doc.setFont("helvetica","bold"); doc.text(`${e.apelido} · ${e.cnpj} · GR ${e.grauRisco} · ${rows.length}`, M, y);
+      doc.autoTable({ startY:y+2, head, columnStyles:{0:{cellWidth:62},1:{cellWidth:25},2:{cellWidth:22},3:{cellWidth:38},4:{cellWidth:20},5:{cellWidth:52},6:{cellWidth:26}}, margin:{left:M,right:M,top:16}, styles:{fontSize:8,cellPadding:1.6,textColor:ink}, headStyles:{fillColor:[237,241,240],textColor:ink,fontStyle:"bold"},
+        body: rows.map(({c,cls})=>[c.nome, c.cpf||"—", c.unidade, c.cargo, BR(c.admissao), cls.last?`${BR(cls.last.data)} ${cls.last.tipo}${cls.last.presumido?" (presumido)":""}`:"—", BR(cls.due), cls.label]),
+        didDrawPage: () => voltar() });
+      y = doc.lastAutoTable.finalY + 9;
+    });
+  });
+  if (R.incDem && R.dl.length){
+    doc.addPage(); pages.dem = doc.getNumberOfPages(); voltar();
+    doc.setFillColor(...ink); doc.rect(M,14,W-2*M,11,"F"); doc.setTextColor(255); doc.setFontSize(14); doc.setFont("helvetica","bold");
+    const pend = R.dl.filter(x=>x.d.pend).length;
+    doc.text(`Desligamentos e demissional (${R.dl.length}, ${pend} pendentes)`, M+4, 21.5);
+    doc.autoTable({ startY:30, margin:{left:M,right:M,top:16}, styles:{fontSize:8,cellPadding:1.6,textColor:ink}, headStyles:{fillColor:[237,241,240],textColor:ink,fontStyle:"bold"},
+      head:[["Empregado","CNPJ","Unidade","Desligamento","Motivo","Último ASO","Demissional"]],
+      body: R.dl.sort((a,b)=>(b.d.pend-a.d.pend)||(b.c.dataDesligamento||"").localeCompare(a.c.dataDesligamento||"")).map(({c,d})=>[c.nome, apelido(c)+" · GR "+(grOf(c)??"?"), c.unidade, BR(c.dataDesligamento), c.motivoDesligamento||"", d.last?`${BR(d.last.data)} ${d.last.tipo}`:"—", d.label]),
+      didDrawPage: () => voltar() });
+  }
+  // página 1: resumo clicável
+  doc.setPage(1);
+  doc.setTextColor(...ink); doc.setFont("helvetica","bold"); doc.setFontSize(20); doc.text("Controle de exames ocupacionais", M, 20);
+  doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(...muted);
+  doc.text(`Grupo Almeria · ${R.titulo} · posição em ${BR(TODAY)}`, M, 27);
+  doc.text("Clique em um status ou em um número da tabela para ir direto à lista.", M, 32);
+  const keysAll = R.keys.length ? R.keys : [];
+  const bw = (W-2*M - 4*(Math.max(keysAll.length,1)-1)) / Math.max(keysAll.length + (R.incDem?1:0),1);
+  let x = M;
+  const botao = (label, n, cor, page) => {
+    doc.setFillColor(...cor); doc.roundedRect(x, 38, bw-4, 24, 2, 2, "F");
+    doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(20); doc.text(String(n), x+4, 50);
+    doc.setFontSize(9); doc.setFont("helvetica","normal"); doc.text(label, x+4, 57);
+    if (page) doc.link(x, 38, bw-4, 24, { pageNumber: page });
+    x += bw;
+  };
+  const curto = { late:"Vencidos", soon:"Vencem em 30 dias", next:"Vencem em 31-60 dias", ok:"Em dia", off:"Afastados / licença" };
+  keysAll.forEach(k => botao(curto[k], R.at.filter(r=>r.cls.key===k).length, STATUS[k].cor, pages[k]));
+  if (R.incDem) botao("Demissional pendente", R.dl.filter(r=>r.d.pend).length, ink, pages.dem);
+  // matriz CNPJ x status
+  if (keysAll.length){
+    let y = 74; const c0 = 78, cw = Math.min(34, (W-2*M-c0)/(keysAll.length+1));
+    doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(...muted);
+    doc.text("CNPJ de registro", M, y); keysAll.forEach((k,i)=>doc.text(STATUS[k].label.replace("Vencem em ","").replace("Afastados / licença","Afast./lic."), M+c0+i*cw, y, { maxWidth: cw-2 })); doc.text("Total", M+c0+keysAll.length*cw, y);
+    y += 3; doc.setDrawColor(213,222,220); doc.line(M, y, W-M, y);
+    empsOrdered().forEach(e => {
+      const rows = R.at.filter(r=>cnpjKey(r.c)===String(e.id)); if (!rows.length) return;
+      y += 8; doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(...ink); doc.text(`${e.apelido}`, M, y);
+      doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...muted); doc.text(`${e.cnpj} · GR ${e.grauRisco}`, M, y+3.6);
+      let tot = 0;
+      keysAll.forEach((k,i) => {
+        const n = rows.filter(r=>r.cls.key===k).length; tot += n;
+        const px = M+c0+i*cw;
+        if (n){ doc.setFillColor(...STATUS[k].cor); doc.roundedRect(px-1, y-4.5, 16, 7, 1.5, 1.5, "F"); doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.text(String(n), px+7, y+0.5, { align:"center" });
+          const pg = pages[k+"|"+e.id]; if (pg) doc.link(px-1, y-4.5, 16, 7, { pageNumber: pg }); }
+        else { doc.setTextColor(...muted); doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text("–", px+7, y+0.5, { align:"center" }); }
+      });
+      doc.setTextColor(...ink); doc.setFont("helvetica","bold"); doc.text(String(tot), M+c0+keysAll.length*cw+2, y+0.5);
+      y += 3.6; doc.setDrawColor(230,236,234); doc.line(M, y+2, W-M, y+2);
+    });
+    y += 12; doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...muted);
+    doc.text("Regras: periódico conforme periodicidade do PCMSO (padrão 12 meses). Demissional em até 10 dias do término, dispensado se o último ASO tiver menos de 135 dias (GR 1 e 2) ou 90 dias (GR 3 e 4) · NR-4 e NR-7.", M, Math.min(y, H-14), { maxWidth: W-2*M });
+    doc.text("“Presumido” = sem ASO lançado; considerada a data de admissão como admissional.", M, Math.min(y+5, H-10));
+  }
+  rodape();
+  doc.save(fname(f,"pdf"));
+  toast("PDF baixado");
+}
+
+function gerarExcel(f){
+  const R = recorte(f), wb = XLSX.utils.book_new();
+  const nomes = { late:"Vencidos", soon:"Vencem 30 dias", next:"Vencem 31-60 dias", ok:"Em dia", off:"Afastados", dem:"Demissional", ex:"Exames lançados" };
+  const resumo = [["Controle de exames ocupacionais · Grupo Almeria"],[R.titulo + " · posição em " + BR(TODAY)],[],["Status","Quantidade","Ir para a aba"]];
+  const links = [];
+  R.keys.forEach(k => { resumo.push([STATUS[k].label, R.at.filter(r=>r.cls.key===k).length, "Abrir " + nomes[k]]); links.push([resumo.length-1, nomes[k]]); });
+  if (R.incDem){ resumo.push(["Demissionais pendentes", R.dl.filter(r=>r.d.pend).length, "Abrir " + nomes.dem]); links.push([resumo.length-1, nomes.dem]); }
+  resumo.push([]); resumo.push(["CNPJ", "GR", ...R.keys.map(k=>STATUS[k].label), "Total"]);
+  empsOrdered().forEach(e => { const rows = R.at.filter(r=>cnpjKey(r.c)===String(e.id)); if (!rows.length) return;
+    const ns = R.keys.map(k=>rows.filter(r=>r.cls.key===k).length); resumo.push([`${e.apelido} (${e.cnpj})`, e.grauRisco, ...ns, ns.reduce((a,b)=>a+b,0)]); });
+  const wsR = XLSX.utils.aoa_to_sheet(resumo);
+  links.forEach(([r, sh]) => { const ref = XLSX.utils.encode_cell({ r, c:2 }); wsR[ref].l = { Target:`#'${sh}'!A1`, Tooltip:"Ir para a aba" }; });
+  wsR["!cols"] = [{wch:44},{wch:12},...R.keys.map(()=>({wch:20})),{wch:10}];
+  XLSX.utils.book_append_sheet(wb, wsR, "Resumo");
+  const cab = ["Nome","CPF","CNPJ","Empresa","GR","Unidade","Cargo","Admissão","Último exame","Tipo","Presumido?","Próximo periódico","Situação","Link do ASO","Voltar"];
+  R.keys.forEach(k => {
+    const rows = sortRows(R.at.filter(r=>r.cls.key===k));
+    const aoa = [cab, ...rows.map(({c,cls})=>[c.nome,c.cpf,c.cnpj,apelido(c),grOf(c),c.unidade,c.cargo,BR(c.admissao),cls.last?BR(cls.last.data):"",cls.last?cls.last.tipo:"",cls.last&&cls.last.presumido?"sim":"não",BR(cls.due),cls.label,cls.last&&cls.last.anexoUrl?"abrir ASO":"",""])];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    rows.forEach(({cls},i) => { if (cls.last && cls.last.anexoUrl) ws[XLSX.utils.encode_cell({r:i+1,c:13})].l = { Target: cls.last.anexoUrl }; });
+    ws["N1"] && (ws["O1"] = { t:"s", v:"Voltar ao resumo", l:{ Target:"#'Resumo'!A1" } });
+    ws["!cols"] = [{wch:38},{wch:15},{wch:20},{wch:24},{wch:5},{wch:13},{wch:24},{wch:11},{wch:12},{wch:22},{wch:10},{wch:14},{wch:18},{wch:11},{wch:16}];
+    ws["!autofilter"] = { ref: XLSX.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(rows.length,1),c:12}}) };
+    XLSX.utils.book_append_sheet(wb, ws, nomes[k]);
+  });
+  if (R.incDem){
+    const rows = R.dl;
+    const aoa = [["Nome","CPF","CNPJ","Empresa","GR","Unidade","Cargo","Desligamento","Motivo","Último ASO","Tipo","Demissional","Pendente?","Link do demissional","Voltar"],
+      ...rows.map(({c,d})=>[c.nome,c.cpf,c.cnpj,apelido(c),grOf(c),c.unidade,c.cargo,BR(c.dataDesligamento),c.motivoDesligamento||"",d.last?BR(d.last.data):"",d.last?d.last.tipo:"",d.label,d.pend?"sim":"não",d.feito&&d.feito.anexoUrl?"abrir ASO":"",""])];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    rows.forEach(({d},i)=>{ if (d.feito && d.feito.anexoUrl) ws[XLSX.utils.encode_cell({r:i+1,c:13})].l = { Target:d.feito.anexoUrl }; });
+    ws["O1"] = { t:"s", v:"Voltar ao resumo", l:{ Target:"#'Resumo'!A1" } };
+    ws["!cols"] = [{wch:38},{wch:15},{wch:20},{wch:24},{wch:5},{wch:13},{wch:24},{wch:13},{wch:24},{wch:12},{wch:20},{wch:36},{wch:10},{wch:16},{wch:16}];
+    ws["!autofilter"] = { ref: XLSX.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(rows.length,1),c:12}}) };
+    XLSX.utils.book_append_sheet(wb, ws, nomes.dem);
+  }
+  const ids = new Set([...R.at.map(r=>r.c.id), ...R.dl.map(r=>r.c.id)]);
+  const ex = S.exames.filter(e=>ids.has(e.colaboradorId)).sort((a,b)=>a.data<b.data?1:-1);
+  if (ex.length){
+    const ws = XLSX.utils.aoa_to_sheet([["Nome","Unidade","Tipo","Data","Observação","Anexo","Lançado por","Lançado em"], ...ex.map(e=>[e.nome,e.unidade,e.tipo,BR(e.data),e.obs,e.anexoUrl?"abrir ASO":"",e.lancadoPor,e.lancadoEm])]);
+    ex.forEach((e,i)=>{ if (e.anexoUrl) ws[XLSX.utils.encode_cell({r:i+1,c:5})].l = { Target:e.anexoUrl }; });
+    ws["!cols"] = [{wch:38},{wch:13},{wch:24},{wch:11},{wch:30},{wch:11},{wch:28},{wch:16}];
+    XLSX.utils.book_append_sheet(wb, ws, nomes.ex);
+  }
+  XLSX.writeFile(wb, fname(f,"xlsx"));
+  toast("Excel baixado");
+}
+
+/* ---------------- login / eventos ---------------- */
+function sair(){ try { sessionStorage.removeItem("ex_token"); } catch {} S.token = null; S.user = null; mostrar(false); }
+function mostrar(logado){
+  $("#loginView").hidden = logado; $("#appView").hidden = !logado;
+  if (logado){
+    $("#who").innerHTML = `<b>${esc(S.user.nome)}</b><br>${S.user.perfil==="RH"?"RH · edição":"consulta"}${S.user.unidades&&S.user.unidades!=="TODAS"?" · "+esc(S.user.unidades):""}`;
+    document.querySelectorAll(".rh-only").forEach(b => b.hidden = !isRH());
+  }
+}
+$("#loginForm").onsubmit = async e => {
+  e.preventDefault(); const b = $("#lbtn"); b.disabled = true; $("#lerr").textContent = "";
+  try {
+    const r = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"login", email:$("#lemail").value, senha:$("#lsenha").value }) });
+    const j = await r.json(); if (!j.ok) throw new Error(j.msg);
+    S.token = j.token; S.user = j.user; try { sessionStorage.setItem("ex_token", j.token); } catch {}
+    mostrar(true); $("#main").innerHTML = `<div class="card empty">Carregando…</div>`; await carregar();
+  } catch(x){ $("#lerr").textContent = x.message.includes("fetch") ? "Sem conexão com o servidor. Tente de novo." : x.message; }
+  b.disabled = false;
+};
+document.addEventListener("click", e => {
+  const t = e.target;
+  const act = t.closest("[data-act]"); if (act){ ({ exportar:openExport, desligar:openDesligar, admissao:openAdmissao, senha:openSenha, sair, recarregar:()=>carregar().then(()=>toast("Dados atualizados")).catch(x=>toast(x.message)) })[act.dataset.act](); return; }
+  const co = t.closest("[data-co]"); if (co){ S.sel = co.dataset.co; S.unidade=""; render(); return; }
+  const tb = t.closest("[data-tab]"); if (tb){ S.tab = tb.dataset.tab; renderMain(); return; }
+  const st = t.closest("[data-st]"); if (st){ const v = st.dataset.st; S.status = (S.status===v && v && v!=="pend") ? "pend" : v; S.tab="ativos"; renderMain(); return; }
+  const dm = t.closest("[data-dem]"); if (dm){ S.demPend = dm.dataset.dem === "1"; renderMain(); return; }
+  if (t.closest("a")) return;
+  const r = t.closest("tr.row"); if (r) openFicha(r.dataset.id);
+});
+document.addEventListener("keydown", e => { const r = e.target.closest && e.target.closest("tr.row"); if (r && (e.key==="Enter"||e.key===" ")){ e.preventDefault(); openFicha(r.dataset.id); } });
+document.addEventListener("input", e => { if (e.target.id === "q"){ S.q = e.target.value; const p = e.target.selectionStart; renderMain(); const q=$("#q"); q.focus(); q.setSelectionRange(p,p); } });
+document.addEventListener("change", async e => {
+  if (e.target.id === "un"){ S.unidade = e.target.value; renderMain(); }
+  if (e.target.id === "perSel"){ try { await api("periodicidade",{ empresaId:S.sel, meses:+e.target.value }); toast("Periodicidade atualizada"); await carregar(); } catch(x){ toast(x.message); } }
+});
+$("#today").textContent = BR(TODAY);
+(async () => {
+  let tk = null; try { tk = sessionStorage.getItem("ex_token"); } catch {}
+  if (!tk) return mostrar(false);
+  S.token = tk;
+  try { S.user = { nome:"", perfil:"" }; mostrar(true); await carregar(); mostrar(true); } catch { sair(); }
+})();
+window.__S = S;
+})();
+
+</script>
+</body>
+</html>
