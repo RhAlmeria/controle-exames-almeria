@@ -210,7 +210,7 @@ const STATUS = {
 };
 const ORDER = ["late","soon","next","ok","off"];
 
-const S = { token:null, user:null, empresas:{}, colabs:[], exames:[], sel:"todas", tab:"ativos", unidade:"", status:"pend", q:"", demPend:true };
+const S = { token:null, user:null, empresas:{}, colabs:[], exames:[], atestados:[], afastamentos:[], periodicidade:{}, sel:"todas", tab:"ativos", unidade:"", status:"pend", q:"", demPend:true };
 const isRH = () => S.user && S.user.perfil === "RH";
 
 /* ---------------- API ---------------- */
@@ -227,6 +227,9 @@ async function carregar(){
   S.empresas = {}; j.empresas.forEach(e => { e.grauRisco = +e.grauRisco; e.periodicidadeMeses = +e.periodicidadeMeses || 12; e.ordem = +e.ordem || 99; S.empresas[String(e.id)] = e; });
   const byC = {}; j.exames.forEach(e => (byC[e.colaboradorId] ||= []).push(e));
   S.exames = j.exames;
+  S.periodicidade = {}; (j.periodicidade||[]).forEach(p => { if (p.cargo) S.periodicidade[normN(p.cargo)] = +p.meses || 12; });
+  S.atestados = (j.atestados||[]).map(a => ({ ...a, dias: diasAt(a), comp: (a.inicio||"").slice(0,7) }));
+  S.afastamentos = j.afastamentos || [];
   S.colabs = j.colaboradores.map(c => ({ ...c, situacao: c.situacao || "ativo", exames: byC[c.id] || [] }));
   $("#stamp").textContent = "Atualizado " + j.geradoEm.split(" ")[1];
   render();
@@ -234,7 +237,20 @@ async function carregar(){
 
 /* ---------------- regras ---------------- */
 const empOf = c => S.empresas[dig(c.cnpj)] || null;
-const months = c => (empOf(c) || {}).periodicidadeMeses || 12;
+const normN = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\(.*?\)/g," ").replace(/[^A-Z ]/g," ").replace(/\s+/g," ").trim();
+const months = c => S.periodicidade[normN(c.cargo)] || (empOf(c) || {}).periodicidadeMeses || 12;
+const diasAt = a => { const i = P(a.inicio), f = P(a.fim); if (!i) return 0; if (!f || f < i) return 1; return diffDays(f, i) + 1; };
+const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const compLabel = k => k ? MESES[+k.slice(5,7)-1] + "/" + k.slice(0,4) : "Sem data";
+const LIXO = /\b(AFASTAMENTO|ATESTADO|ATESTDO|ODONTOLOGICO|DECLARACAO DE COMPARECIMENTO|GRUPO NOROESTE|ADVERTENCIA)\b/g;
+function acharColab(nome){
+  const n = normN(nome).replace(LIXO," ").replace(/\s+/g," ").trim(); if (!n) return null;
+  const L = S.colabs.map(c => [c, normN(c.nome)]);
+  let x = L.find(([,k]) => k === n) || L.find(([,k]) => k.startsWith(n + " ") || n.startsWith(k + " "));
+  if (!x){ const t = n.split(" "); if (t.length >= 2) { const sc = ([,k]) => { const u = k.split(" "); return u[0] !== t[0] ? 0 : t.filter(w => u.includes(w) || u.some(v => v.length > 4 && w.length > 4 && (v.startsWith(w.slice(0,5)) ))).length; };
+    const best = L.map(e => [e, sc(e)]).filter(([,v]) => v >= Math.min(3, t.length)).sort((a,b)=>b[1]-a[1]); if (best.length && (best.length === 1 || best[0][1] > best[1][1])) x = best[0][0]; } }
+  return x ? x[0] : null;
+}
 const grOf = c => (empOf(c) || {}).grauRisco || null;
 const cnpjKey = c => dig(c.cnpj);
 function lastCycle(c){
@@ -318,6 +334,8 @@ function renderMain(){
   const tabs = `<div class="tabs" role="tablist">
     <button class="tab" role="tab" data-tab="ativos" aria-selected="${S.tab==="ativos"}">Periódico (${base.length})</button>
     <button class="tab" role="tab" data-tab="deslig" aria-selected="${S.tab==="deslig"}">Demissional (${demPend} pendentes)</button>
+    ${isRH()?`<button class="tab" role="tab" data-tab="atest" aria-selected="${S.tab==="atest"}">Atestados (${S.atestados.length})</button>
+    <button class="tab" role="tab" data-tab="afast" aria-selected="${S.tab==="afast"}">Afastamentos (${S.afastamentos.filter(temPend).length} pendências)</button>`:""}
     <button class="tab" role="tab" data-tab="regras" aria-selected="${S.tab==="regras"}">Regras NR-4 / NR-7</button></div>`;
   let body = "";
   if (S.tab === "ativos"){
@@ -356,16 +374,95 @@ function renderMain(){
         <td><span class="pill p-${d.key}">${esc(d.label)}</span>${d.feito&&d.feito.anexoUrl?` <a class="att" href="${esc(d.feito.anexoUrl)}" target="_blank" rel="noopener">ASO</a>`:""}</td></tr>`).join("")
         || `<tr><td colspan="5" class="empty">${S.demPend?"Nenhum demissional pendente.":"Nenhum desligamento registrado."}${isRH()?" Use “Inserir desligado” para lançar um.":""}</td></tr>`}
       </tbody></table></div>`;
+  } else if (S.tab === "atest") { body = viewAtestados();
+  } else if (S.tab === "afast") { body = viewAfastamentos();
   } else {
     body = `<div class="note" style="max-width:80ch">
       <p><b>Grau de risco (NR-4, Anexo I).</b> Pelo CNAE principal de cada CNPJ: 56.11-2 Restaurantes → GR 2; 56.20-1 Bufê → GR 3; 64.63-8 Sociedades de participação → GR 1.</p>
-      <p><b>Periódico (NR-7, 7.5.8).</b> Anual para expostos a riscos do PGR e portadores de doença crônica; a cada dois anos para os demais, salvo intervalo menor definido pelo médico do PCMSO. Padrão aqui: 12 meses, ajustável por CNPJ.</p>
+      <p><b>Periódico (NR-7, 7.5.8).</b> Anual para expostos a riscos do PGR e portadores de doença crônica; a cada dois anos para os demais, salvo intervalo menor definido pelo médico do PCMSO. Padrão aqui: 12 meses, ajustável por CNPJ. <b>Salão (garçom, cumim, chefe de fila, hostess, sommelier, gerência de salão): 24 meses</b>, conforme a aba Periodicidade da planilha.</p>
       <p><b>Retorno ao trabalho (7.5.9).</b> No primeiro dia de volta após afastamento de 30 dias ou mais por doença ou acidente.</p>
       <p><b>Mudança de riscos (7.5.10).</b> Antes de mudar de função, setor ou atividade com risco diferente.</p>
       <p><b>Demissional (7.5.11 e 7.5.12).</b> Em até 10 dias do término do contrato. Dispensado se o último exame ocupacional tiver menos de 135 dias (GR 1 e 2) ou 90 dias (GR 3 e 4).</p>
       <p><b>Quem entra.</b> CLT ativos, afastados ou em licença. PJ e sócios ficam de fora.</p></div>`;
   }
   $("#main").innerHTML = head + `<div class="card">${tabs}${body}</div>`;
+}
+const temPend = a => !!(a.pendencia || (a.documentacao && a.documentacao !== "OK"));
+function viewAtestados(){
+  const F = S.af ||= { comp:"", un:"", tipo:"", st:"", q:"" };
+  const comps = [...new Set(S.atestados.map(a=>a.comp))].sort().reverse();
+  const opt = (arr, v, lab=x=>x) => arr.map(x=>`<option value="${esc(x)}" ${x===v?"selected":""}>${esc(lab(x))}</option>`).join("");
+  const q = normN(F.q);
+  const rows = S.atestados.filter(a => (!F.comp || a.comp===F.comp) && (!F.un || a.unidade===F.un) && (!F.tipo || a.tipo===F.tipo) && (!F.st || a.status===F.st) && (!q || normN(a.colaborador).includes(q)))
+    .sort((a,b)=>(b.inicio||"").localeCompare(a.inicio||""));
+  const dias = rows.reduce((s,a)=>s+a.dias,0), pessoas = new Set(rows.map(a=>normN(a.colaborador))).size, nh = rows.filter(a=>/nao homolog|não homolog/i.test(a.status)).length;
+  return `<div class="filters">
+    <select data-af="comp" aria-label="Competência"><option value="">Todas as competências</option>${opt(comps,F.comp,compLabel)}</select>
+    <select data-af="un" aria-label="Unidade"><option value="">Todas as unidades</option>${opt([...new Set(S.atestados.map(a=>a.unidade).filter(Boolean))].sort(),F.un)}</select>
+    <select data-af="tipo" aria-label="Tipo"><option value="">Todos os tipos</option>${opt([...new Set(S.atestados.map(a=>a.tipo).filter(Boolean))].sort(),F.tipo)}</select>
+    <select data-af="st" aria-label="Status"><option value="">Todos os status</option>${opt([...new Set(S.atestados.map(a=>a.status).filter(Boolean))].sort(),F.st)}</select>
+    <input data-af="q" type="search" placeholder="Buscar colaborador" value="${esc(F.q)}" aria-label="Buscar colaborador"></div>
+    <div class="bignum" style="margin-bottom:12px"><div class="tile next"><b>${rows.length}</b><span>registros</span></div><div class="tile soon"><b>${dias}</b><span>dias de atestado</span></div><div class="tile ok"><b>${pessoas}</b><span>colaboradores</span></div><div class="tile late"><b>${nh}</b><span>não homologados</span></div></div>
+    <p class="small">Clique no nome para ver o histórico da pessoa: atestados dos últimos 60 dias, soma por CID e alerta de encaminhamento ao INSS. O CID pode ser preenchido aqui (o Notion não tem esse campo).</p>
+    <div class="scroll"><table><thead><tr><th>Colaborador</th><th>Tipo</th><th>Unidade</th><th>Período</th><th>Dias</th><th>Competência</th><th>Status</th><th>CID</th><th>Obs.</th></tr></thead><tbody>
+    ${rows.slice(0,400).map(a=>`<tr><td><button class="btn ghost" style="padding:2px 8px;text-align:left" data-hist="${esc(a.colaborador)}">${esc(a.colaborador)}</button></td><td>${esc(a.tipo||"—")}</td><td class="small">${esc(a.unidade||"—")}</td>
+      <td>${BR(a.inicio)}${a.fim&&a.fim!==a.inicio?" a "+BR(a.fim):""}</td><td>${a.dias}</td><td class="small">${esc(compLabel(a.comp))}</td>
+      <td><span class="pill ${/conclu/i.test(a.status)?"p-ok":/homolog|travado/i.test(a.status)?"p-soon":"p-next"}">${esc(a.status||"—")}</span></td>
+      <td><input data-cid="${esc(a.id)}" value="${esc(a.cid||"")}" placeholder="—" style="width:70px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;background:var(--surface-2)" aria-label="CID"></td>
+      <td class="small">${esc((a.obs||"").slice(0,80))} <a class="att" href="${esc(a.notionUrl)}" target="_blank" rel="noopener">Notion</a></td></tr>`).join("") || `<tr><td colspan="9" class="empty">Nenhum atestado com esse filtro.</td></tr>`}
+    </tbody></table></div>`;
+}
+function openHist(nome){
+  const c = acharColab(nome), chave = c ? normN(c.nome) : normN(nome).replace(LIXO," ").trim();
+  const L = S.atestados.filter(a => { const cc = acharColab(a.colaborador); return cc ? (c && cc.id===c.id) : normN(a.colaborador).replace(LIXO," ").trim()===chave; }).sort((a,b)=>(b.inicio||"").localeCompare(a.inicio||""));
+  const ref = S.histRef || ISO(TODAY), lim = ISO(addDays(P(ref), -59));
+  const j60 = L.filter(a => a.inicio && a.inicio >= lim && a.inicio <= ref && a.tipo !== "Comparecimento");
+  const porCid = {}; j60.forEach(a => { const k = a.cid || "Sem CID"; (porCid[k] ||= { dias:0, n:0 }); porCid[k].dias += a.dias; porCid[k].n++; });
+  const tot = j60.reduce((s,a)=>s+a.dias,0);
+  const alertas = Object.entries(porCid).filter(([k,v]) => k !== "Sem CID" && v.dias > 15);
+  modal(`<h3>${esc(c ? c.nome : nome)}</h3><div class="small">${c ? esc(c.cargo)+" · "+esc(c.unidade)+" · "+esc(apelido(c)) : "Não encontrado na base de empregados ativos"}</div>
+    <div class="frow" style="margin-top:12px"><div><label for="hRef">Janela de 60 dias até</label><input id="hRef" type="date" value="${ref}"></div></div>
+    <div class="bignum"><div class="tile next"><b>${j60.length}</b><span>atestados em 60 dias</span></div><div class="tile soon"><b>${tot}</b><span>dias somados</span></div><div class="tile ok"><b>${L.length}</b><span>no histórico</span></div></div>
+    ${alertas.length ? `<div class="banner" style="background:var(--late-soft);color:var(--late);margin-top:12px"><b>Encaminhar ao INSS:</b> ${alertas.map(([k,v])=>`CID ${esc(k)} soma ${v.dias} dias em 60 dias`).join("; ")}. Atestados do mesmo CID que somam mais de 15 dias em 60 dias são tratados como um único afastamento (Lei 8.213/91, art. 60, e Decreto 3.048/99, art. 75). Recomendo validar com a advogada.</div>`
+      : (porCid["Sem CID"] && tot > 15 ? `<div class="banner" style="margin-top:12px">Somam ${tot} dias em 60 dias, mas ${porCid["Sem CID"].n} atestado(s) estão sem CID. Preencha o CID para saber se é o mesmo motivo (regra dos 15 dias).</div>` : "")}
+    <b style="display:block;margin-top:12px">Soma por CID (janela de 60 dias, sem comparecimentos)</b>
+    <ul class="hist">${Object.entries(porCid).map(([k,v])=>`<li>${esc(k)} · ${v.n} atestado(s) · ${v.dias} dias</li>`).join("") || `<li class="small">Nenhum atestado na janela.</li>`}</ul>
+    <b>Histórico completo</b>
+    <ul class="hist">${L.map(a=>`<li>${BR(a.inicio)}${a.fim&&a.fim!==a.inicio?" a "+BR(a.fim):""} · ${a.dias} d · ${esc(a.tipo||"")} · CID ${esc(a.cid||"—")} <span class="small">· ${esc(a.status||"")}</span> <a class="att" href="${esc(a.notionUrl)}" target="_blank" rel="noopener">Notion</a></li>`).join("")}</ul>
+    <div class="actions"><button class="btn ghost" id="dlgClose">Fechar</button></div>`);
+  $("#hRef").onchange = e => { S.histRef = e.target.value; openHist(nome); };
+}
+function viewAfastamentos(){
+  const so = S.afPend !== false;
+  const rows = S.afastamentos.filter(a => !so || temPend(a)).sort((a,b)=>(temPend(b)-temPend(a)) || String(a.nome).localeCompare(b.nome));
+  return `<div class="filters">
+    <div class="seg" role="group" aria-label="Mostrar"><button data-afp="1" aria-pressed="${so}">Pendências (cobrar / advogada)</button><button data-afp="0" aria-pressed="${!so}">Todos os afastamentos</button></div>
+    <button class="btn" data-afedit="">Novo afastamento</button>
+    <span class="small">Situação conferida na folha (FOPAG) mais recente e na pasta da pessoa.</span></div>
+    <div class="scroll"><table><thead><tr><th>Colaborador</th><th>Tipo</th><th>Início</th><th>Previsão de retorno</th><th>Na folha</th><th>Documentação</th><th>Pendência / ação</th></tr></thead><tbody>
+    ${rows.map(a=>`<tr class="row" data-afedit="${esc(a.id)}" tabindex="0"><td><div class="name">${esc(a.nome)}</div><div class="small">${esc(a.unidade||"")} · ${esc(a.cnpj||"")}</div></td>
+      <td>${esc(a.tipo||"—")}</td><td>${BR(a.inicio)}</td><td>${BR(a.previsaoRetorno)}</td>
+      <td>${esc(a.situacaoFolha||"—")}<div class="small">${esc(a.fonteFolha||"")}</div></td>
+      <td><span class="pill ${a.documentacao==="OK"?"p-ok":"p-late"}">${esc(a.documentacao||"Não conferida")}</span></td>
+      <td>${a.pendencia?`<div>${esc(a.pendencia)}</div>`:""}${a.acao?`<span class="pill p-soon">${esc(a.acao)}</span>`:""}</td></tr>`).join("") || `<tr><td colspan="7" class="empty">${so?"Nenhuma pendência de afastamento.":"Nenhum afastamento cadastrado."}</td></tr>`}
+    </tbody></table></div>`;
+}
+function openAfast(id){
+  const a = S.afastamentos.find(x=>x.id===id) || { id:"", nome:"", tipo:"Auxílio-doença (INSS)", documentacao:"Não conferida" };
+  const f = (k,lab,type="text") => `<div><label for="f_${k}">${lab}</label><input id="f_${k}" type="${type}" value="${esc(a[k]||"")}"></div>`;
+  const s = (k,lab,ops) => `<div><label for="f_${k}">${lab}</label><select id="f_${k}">${ops.map(o=>`<option ${o===(a[k]||"")?"selected":""}>${o}</option>`).join("")}</select></div>`;
+  modal(`<h3>${a.id?"Afastamento":"Novo afastamento"}</h3>
+    <div class="frow">${f("nome","Colaborador")}${f("unidade","Unidade")}</div>
+    <div class="frow">${s("tipo","Tipo",["Auxílio-doença (INSS)","Acidente de trabalho (CAT/B91)","Licença-maternidade","Atestado acima de 15 dias","Outro"])}${f("cnpj","CNPJ")}</div>
+    <div class="frow">${f("inicio","Início","date")}${f("previsaoRetorno","Previsão de retorno","date")}</div>
+    <div class="frow">${f("situacaoFolha","Situação na folha")}${f("fonteFolha","Fonte (folha/competência)")}</div>
+    <div class="frow">${s("documentacao","Documentação na pasta",["Não conferida","OK","Incompleta","Sem documento"])}${s("acao","Ação",["","Cobrar colaborador","Consultar advogada","Agendar perícia/retorno","Aguardando INSS","Resolvido"])}</div>
+    <div class="frow"><div><label for="f_pendencia">Pendência</label><input id="f_pendencia" value="${esc(a.pendencia||"")}"></div></div>
+    <div class="frow"><div><label for="f_obs">Observações</label><input id="f_obs" value="${esc(a.obs||"")}"></div></div>
+    <div class="actions"><button class="btn ghost" id="dlgClose">Fechar</button><button class="btn" id="afSave">Salvar</button></div>`);
+  $("#afSave").onclick = e => { const o = { id:a.id, colaboradorId:a.colaboradorId||"" }; ["nome","unidade","tipo","cnpj","inicio","previsaoRetorno","situacaoFolha","fonteFolha","documentacao","acao","pendencia","obs"].forEach(k=>o[k]=$("#f_"+k).value.trim());
+    if (o.acao === "Resolvido") o.pendencia = "";
+    run(e.target, () => api("saveAfastamento",{ afastamento:o }), "Afastamento salvo"); };
 }
 function render(){ renderRail(); renderMain(); }
 
@@ -655,13 +752,18 @@ document.addEventListener("click", e => {
   const tb = t.closest("[data-tab]"); if (tb){ S.tab = tb.dataset.tab; renderMain(); return; }
   const st = t.closest("[data-st]"); if (st){ const v = st.dataset.st; S.status = (S.status===v && v && v!=="pend") ? "pend" : v; S.tab="ativos"; renderMain(); return; }
   const dm = t.closest("[data-dem]"); if (dm){ S.demPend = dm.dataset.dem === "1"; renderMain(); return; }
+  const hi = t.closest("[data-hist]"); if (hi){ S.histRef = null; openHist(hi.dataset.hist); return; }
+  const afp = t.closest("[data-afp]"); if (afp){ S.afPend = afp.dataset.afp === "1"; renderMain(); return; }
+  const afe = t.closest("[data-afedit]"); if (afe){ if (isRH()) openAfast(afe.dataset.afedit); return; }
   if (t.closest("a")) return;
   const r = t.closest("tr.row"); if (r) openFicha(r.dataset.id);
 });
 document.addEventListener("keydown", e => { const r = e.target.closest && e.target.closest("tr.row"); if (r && (e.key==="Enter"||e.key===" ")){ e.preventDefault(); openFicha(r.dataset.id); } });
-document.addEventListener("input", e => { if (e.target.id === "q"){ S.q = e.target.value; const p = e.target.selectionStart; renderMain(); const q=$("#q"); q.focus(); q.setSelectionRange(p,p); } });
+document.addEventListener("input", e => { if (e.target.dataset && e.target.dataset.af === "q"){ S.af.q = e.target.value; const p = e.target.selectionStart; renderMain(); const q=document.querySelector('[data-af="q"]'); q.focus(); q.setSelectionRange(p,p); return; } if (e.target.id === "q"){ S.q = e.target.value; const p = e.target.selectionStart; renderMain(); const q=$("#q"); q.focus(); q.setSelectionRange(p,p); } });
 document.addEventListener("change", async e => {
   if (e.target.id === "un"){ S.unidade = e.target.value; renderMain(); }
+  if (e.target.dataset && e.target.dataset.af && e.target.dataset.af !== "q"){ S.af[e.target.dataset.af] = e.target.value; renderMain(); }
+  if (e.target.dataset && e.target.dataset.cid){ const id = e.target.dataset.cid, v = e.target.value.trim().toUpperCase(); try { await api("setCid",{ id, cid:v }); const a = S.atestados.find(x=>x.id===id); if (a) a.cid = v; toast("CID salvo"); } catch(x){ toast(x.message); } }
   if (e.target.id === "perSel"){ try { await api("periodicidade",{ empresaId:S.sel, meses:+e.target.value }); toast("Periodicidade atualizada"); await carregar(); } catch(x){ toast(x.message); } }
 });
 $("#today").textContent = BR(TODAY);
