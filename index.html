@@ -253,15 +253,16 @@ function acharColab(nome){
 }
 const grOf = c => (empOf(c) || {}).grauRisco || null;
 const cnpjKey = c => dig(c.cnpj);
+const validadeDe = e => { const m = /validade[^0-9]*(\d{2})\/(\d{2})\/(\d{4})/i.exec(e.obs||""); return m ? m[3]+"-"+m[2]+"-"+m[1] : null; };
 function lastCycle(c){
   const ex = c.exames.filter(e => CYCLE_TYPES.includes(e.tipo) && P(e.data)).sort((a,b)=>a.data<b.data?1:-1);
-  if (ex.length) return { ...ex[0], presumido:false };
+  if (ex.length) return { ...ex[0], validade: validadeDe(ex[0]), presumido:false };
   return c.admissao ? { tipo:"Admissional", data:c.admissao, presumido:true } : null;
 }
 function classify(c){
   const last = lastCycle(c), m = months(c);
   if (!last) return { key:"late", label:"Sem data", last, due:null, frac:1 };
-  const lastD = P(last.data), due = addMonths(lastD, m), days = diffDays(due, TODAY);
+  const lastD = P(last.data), due = (last.validade && P(last.validade)) || addMonths(lastD, m), days = diffDays(due, TODAY);
   const frac = Math.max(0, Math.min(1, diffDays(TODAY,lastD) / Math.max(1,diffDays(due,lastD))));
   if (c.status && c.status !== "ATIVO") return { key:"off", label: c.status === "AFASTADO" ? "Afastado" : "Licença", last, due, days, frac };
   if (days < 0) return { key:"late", label:`Vencido há ${-days} d`, last, due, days, frac };
@@ -336,6 +337,7 @@ function renderMain(){
     <button class="tab" role="tab" data-tab="deslig" aria-selected="${S.tab==="deslig"}">Demissional (${demPend} pendentes)</button>
     ${isRH()?`<button class="tab" role="tab" data-tab="atest" aria-selected="${S.tab==="atest"}">Atestados (${S.atestados.length})</button>
     <button class="tab" role="tab" data-tab="afast" aria-selected="${S.tab==="afast"}">Afastamentos (${S.afastamentos.filter(temPend).length} pendências)</button>`:""}
+    <button class="tab" role="tab" data-tab="vt" aria-selected="${S.tab==="vt"}">Periódicos × VT</button>
     <button class="tab" role="tab" data-tab="regras" aria-selected="${S.tab==="regras"}">Regras NR-4 / NR-7</button></div>`;
   let body = "";
   if (S.tab === "ativos"){
@@ -374,6 +376,7 @@ function renderMain(){
         <td><span class="pill p-${d.key}">${esc(d.label)}</span>${d.feito&&d.feito.anexoUrl?` <a class="att" href="${esc(d.feito.anexoUrl)}" target="_blank" rel="noopener">ASO</a>`:""}</td></tr>`).join("")
         || `<tr><td colspan="5" class="empty">${S.demPend?"Nenhum demissional pendente.":"Nenhum desligamento registrado."}${isRH()?" Use “Inserir desligado” para lançar um.":""}</td></tr>`}
       </tbody></table></div>`;
+  } else if (S.tab === "vt") { body = viewVT();
   } else if (S.tab === "atest") { body = viewAtestados();
   } else if (S.tab === "afast") { body = viewAfastamentos();
   } else {
@@ -386,6 +389,66 @@ function renderMain(){
       <p><b>Quem entra.</b> CLT ativos, afastados ou em licença. PJ e sócios ficam de fora.</p></div>`;
   }
   $("#main").innerHTML = head + `<div class="card">${tabs}${body}</div>`;
+}
+const VT_BASE = "2026-09-23";
+function vtRows(){
+  const B = P(VT_BASE);
+  return S.colabs.filter(c => c.situacao !== "desligado").map(c => {
+    const due = c.admissao ? addMonths(P(c.admissao), months(c)) : null;
+    const venc = !!(due && due < B && (!c.status || c.status === "ATIVO"));
+    const per = c.exames.filter(e => e.tipo === "Periódico" && e.data >= "2026-09-01").sort((a,b)=>a.data<b.data?-1:1)[0];
+    if (!venc && !per) return null;
+    return { c, due, venc, per, vt: per && /^2026-(09|10)/.test(per.data) ? 1 : 0, comp: per ? compLabel(per.data.slice(0,7)) : "" };
+  }).filter(Boolean);
+}
+function vtFiltrados(){
+  const F = S.vtf ||= { un:"", cnpj:"", st:"" };
+  return vtRows().filter(x => (!F.un || x.c.unidade===F.un) && (!F.cnpj || cnpjKey(x.c)===F.cnpj) && (!F.st || (F.st==="feito" ? !!x.per : !x.per)))
+    .sort((a,b)=> String(a.c.unidade).localeCompare(b.c.unidade) || (!!a.per - !!b.per) || a.c.nome.localeCompare(b.c.nome));
+}
+function vtResumo(rows){
+  const g = {}; rows.forEach(x => { const k = x.c.unidade || "Sem unidade"; const o = g[k] ||= { venc:0, feitos:0, pend:0, vt:0 }; if (x.venc) o.venc++; if (x.per) o.feitos++; else o.pend++; o.vt += x.vt; });
+  return Object.entries(g).sort();
+}
+function viewVT(){
+  const F = S.vtf ||= { un:"", cnpj:"", st:"" };
+  const rows = vtFiltrados(), res = vtResumo(rows);
+  const uns = [...new Set(vtRows().map(x=>x.c.unidade).filter(Boolean))].sort();
+  const tot = res.reduce((s,[,o])=>({ venc:s.venc+o.venc, feitos:s.feitos+o.feitos, pend:s.pend+o.pend, vt:s.vt+o.vt }), { venc:0, feitos:0, pend:0, vt:0 });
+  return `<p class="note">Quem estava com o periódico vencido em <b>${BR(VT_BASE)}</b> (quando o controle começou) e quem fez periódico desde setembro. Cada periódico feito em setembro ou outubro gera <b>1 dia de vale-transporte</b>. Admissionais não entram.</p>
+    <div class="filters">
+      <select data-vt="un" aria-label="Unidade"><option value="">Todas as unidades</option>${uns.map(u=>`<option ${u===F.un?"selected":""}>${esc(u)}</option>`).join("")}</select>
+      <select data-vt="cnpj" aria-label="CNPJ"><option value="">Todos os CNPJs</option>${empsOrdered().map(e=>`<option value="${esc(String(e.id))}" ${F.cnpj===String(e.id)?"selected":""}>${esc(e.apelido)}</option>`).join("")}</select>
+      <select data-vt="st" aria-label="Situação"><option value="">Todos</option><option value="feito" ${F.st==="feito"?"selected":""}>Já fizeram</option><option value="pend" ${F.st==="pend"?"selected":""}>Ainda não fizeram</option></select>
+      <button class="btn" data-vtx="pdf">Baixar PDF</button><button class="btn" data-vtx="xlsx">Baixar Excel</button><button class="btn ghost" data-vtx="pend">Baixar só quem não fez</button></div>
+    <div class="bignum" style="margin-bottom:12px"><div class="tile late"><b>${tot.venc}</b><span>vencidos em ${BR(VT_BASE)}</span></div><div class="tile ok"><b>${tot.feitos}</b><span>já fizeram</span></div><div class="tile soon"><b>${tot.pend}</b><span>ainda não fizeram</span></div><div class="tile next"><b>${tot.vt}</b><span>dias de VT</span></div></div>
+    <div class="scroll"><table><thead><tr><th>Unidade</th><th>Vencidos em ${BR(VT_BASE)}</th><th>Já fizeram</th><th>Não fizeram</th><th>Dias de VT</th></tr></thead><tbody>
+    ${res.map(([u,o])=>`<tr><td class="name">${esc(u)}</td><td>${o.venc}</td><td>${o.feitos}</td><td>${o.pend}</td><td>${o.vt}</td></tr>`).join("")}</tbody></table></div>
+    <div class="scroll" style="margin-top:14px"><table><thead><tr><th>Empregado</th><th>Unidade · CNPJ</th><th>Venceu em</th><th>Periódico feito em</th><th>Competência do VT</th><th>VT</th></tr></thead><tbody>
+    ${rows.map(x=>`<tr class="row" data-id="${esc(x.c.id)}" tabindex="0"><td><div class="name">${esc(x.c.nome)}</div><div class="small">${esc(x.c.cargo)}</div></td><td>${esc(x.c.unidade)}<div class="small">${esc(apelido(x.c))}</div></td>
+      <td>${x.venc?BR(x.due):"<span class='small'>não estava vencido</span>"}</td><td>${x.per?BR(x.per.data):"<span class='pill p-late'>Não fez</span>"}</td><td>${esc(x.comp||"—")}</td><td>${x.vt?"<span class='pill p-ok'>1 dia</span>":"—"}</td></tr>`).join("") || `<tr><td colspan="6" class="empty">Ninguém com esse filtro.</td></tr>`}
+    </tbody></table></div>`;
+}
+function exportVT(tipo){
+  const F = S.vtf ||= { un:"", cnpj:"", st:"" };
+  const rows = tipo === "pend" ? vtFiltrados().filter(x=>!x.per) : vtFiltrados(), res = vtResumo(rows);
+  const nome = "periodicos-vt_" + (F.un||"todas").replace(/\W+/g,"-").toLowerCase() + (tipo==="pend"?"_pendentes":"") + "_" + ISO(TODAY);
+  const linha = x => [x.c.nome, x.c.cpf||"", x.c.unidade, apelido(x.c), x.c.cargo, x.venc?BR(x.due):"não estava vencido", x.per?BR(x.per.data):"Não fez", x.comp||"", x.vt];
+  const cab = ["Nome","CPF","Unidade","CNPJ","Cargo","Venceu em","Periódico feito em","Competência VT","Dias VT"];
+  if (tipo === "xlsx"){
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Periódicos × Vale-transporte · posição em "+BR(TODAY)],[],["Unidade","Vencidos em "+BR(VT_BASE),"Já fizeram","Não fizeram","Dias de VT"], ...res.map(([u,o])=>[u,o.venc,o.feitos,o.pend,o.vt])]), "Resumo");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([cab, ...rows.filter(x=>x.per).map(linha)]), "Fizeram (VT)");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([cab, ...rows.filter(x=>!x.per).map(linha)]), "Não fizeram");
+    XLSX.writeFile(wb, nome + ".xlsx"); return toast("Excel baixado");
+  }
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation:"landscape", unit:"mm", format:"a4" });
+  doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.text(tipo==="pend" ? "Periódico pendente (ainda não fizeram)" : "Periódicos × Vale-transporte", 12, 16);
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.text("Grupo Almeria · " + (F.un||"todas as unidades") + " · vencidos em " + BR(VT_BASE) + " · posição em " + BR(TODAY), 12, 22);
+  doc.autoTable({ startY:27, head:[["Unidade","Vencidos em "+BR(VT_BASE),"Já fizeram","Não fizeram","Dias de VT"]], body: res.map(([u,o])=>[u,o.venc,o.feitos,o.pend,o.vt]), styles:{fontSize:9}, headStyles:{fillColor:[15,110,106]}, margin:{left:12,right:12} });
+  res.forEach(([u]) => { const rs = rows.filter(x=>(x.c.unidade||"Sem unidade")===u); doc.addPage(); doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.text(u + " (" + rs.length + ")", 12, 15);
+    doc.autoTable({ startY:19, head:[cab], body: rs.map(linha), styles:{fontSize:8}, headStyles:{fillColor:[15,110,106]}, margin:{left:12,right:12} }); });
+  doc.save(nome + ".pdf"); toast("PDF baixado");
 }
 const temPend = a => !!(a.pendencia || (a.documentacao && a.documentacao !== "OK"));
 function viewAtestados(){
@@ -480,6 +543,7 @@ function examForm(c, tipoPadrao){
   return `<fieldset><legend>Registrar exame</legend>
     <div class="frow"><div><label for="exTipo">Tipo</label><select id="exTipo">${EXAM_TYPES.map(t=>`<option ${t===tipoPadrao?"selected":""}>${t}</option>`).join("")}</select></div>
     <div><label for="exData">Data do ASO</label><input id="exData" type="date" value="${ISO(TODAY)}" max="${ISO(addDays(TODAY,1))}"></div></div>
+    <div class="frow"><div><label for="exVal">Validade do ASO (como está no ASO: 1 ou 2 anos)</label><input id="exVal" type="date"></div></div>
     <div class="frow"><div><label for="exObs">Observação</label><input id="exObs" placeholder="Clínica, apto/inapto, pendências"></div></div>
     <label class="drop" id="drop" for="exFile">Anexar o ASO (opcional · PDF ou foto, até 15 MB)</label>
     <input id="exFile" type="file" accept="application/pdf,image/*" hidden>
@@ -492,7 +556,7 @@ function bindExam(c){
     const x = f.files[0], data = $("#exData").value;
     if (!data) return toast("Informe a data do exame");
     if (x && x.size > 15*1024*1024) return toast("Arquivo acima de 15 MB");
-    run(e.target, async () => api("addExame", { colaboradorId:c.id, tipo:$("#exTipo").value, data, obs:$("#exObs").value.trim(),
+    run(e.target, async () => api("addExame", { colaboradorId:c.id, tipo:$("#exTipo").value, data, obs:[$("#exObs").value.trim(), $("#exVal").value ? "validade " + BR($("#exVal").value) : ""].filter(Boolean).join(" · "),
       arquivo: x ? { nome:x.name, tipo:x.type || "application/pdf", base64: await fileB64(x) } : null }), x ? "Exame salvo com o anexo" : "Exame marcado como feito");
   };
 }
@@ -752,6 +816,7 @@ document.addEventListener("click", e => {
   const tb = t.closest("[data-tab]"); if (tb){ S.tab = tb.dataset.tab; renderMain(); return; }
   const st = t.closest("[data-st]"); if (st){ const v = st.dataset.st; S.status = (S.status===v && v && v!=="pend") ? "pend" : v; S.tab="ativos"; renderMain(); return; }
   const dm = t.closest("[data-dem]"); if (dm){ S.demPend = dm.dataset.dem === "1"; renderMain(); return; }
+  const vx = t.closest("[data-vtx]"); if (vx){ try { exportVT(vx.dataset.vtx); } catch(x){ console.error(x); toast("Não consegui gerar o arquivo"); } return; }
   const hi = t.closest("[data-hist]"); if (hi){ S.histRef = null; openHist(hi.dataset.hist); return; }
   const afp = t.closest("[data-afp]"); if (afp){ S.afPend = afp.dataset.afp === "1"; renderMain(); return; }
   const afe = t.closest("[data-afedit]"); if (afe){ if (isRH()) openAfast(afe.dataset.afedit); return; }
@@ -762,6 +827,7 @@ document.addEventListener("keydown", e => { const r = e.target.closest && e.targ
 document.addEventListener("input", e => { if (e.target.dataset && e.target.dataset.af === "q"){ S.af.q = e.target.value; const p = e.target.selectionStart; renderMain(); const q=document.querySelector('[data-af="q"]'); q.focus(); q.setSelectionRange(p,p); return; } if (e.target.id === "q"){ S.q = e.target.value; const p = e.target.selectionStart; renderMain(); const q=$("#q"); q.focus(); q.setSelectionRange(p,p); } });
 document.addEventListener("change", async e => {
   if (e.target.id === "un"){ S.unidade = e.target.value; renderMain(); }
+  if (e.target.dataset && e.target.dataset.vt){ (S.vtf ||= { un:"", cnpj:"", st:"" })[e.target.dataset.vt] = e.target.value; renderMain(); }
   if (e.target.dataset && e.target.dataset.af && e.target.dataset.af !== "q"){ S.af[e.target.dataset.af] = e.target.value; renderMain(); }
   if (e.target.dataset && e.target.dataset.cid){ const id = e.target.dataset.cid, v = e.target.value.trim().toUpperCase(); try { await api("setCid",{ id, cid:v }); const a = S.atestados.find(x=>x.id===id); if (a) a.cid = v; toast("CID salvo"); } catch(x){ toast(x.message); } }
   if (e.target.id === "perSel"){ try { await api("periodicidade",{ empresaId:S.sel, meses:+e.target.value }); toast("Periodicidade atualizada"); await carregar(); } catch(x){ toast(x.message); } }
